@@ -45,6 +45,20 @@ const userSchema = new mongoose.Schema(
       default: 'Product & Engineering',
       trim: true,
     },
+    phone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    bio: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    timezone: {
+      type: String,
+      default: 'UTC',
+    },
     status: {
       type: String,
       enum: ['Online', 'Away', 'In Meeting', 'Offline'],

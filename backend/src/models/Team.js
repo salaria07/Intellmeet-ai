@@ -43,6 +43,34 @@ const teamSchema = new mongoose.Schema(
       type: String,
       default: 'Engineering & AI',
     },
+    avatar: {
+      type: String,
+      default: '',
+    },
+    invitations: [
+      {
+        email: {
+          type: String,
+          required: true,
+          trim: true,
+          lowercase: true,
+        },
+        role: {
+          type: String,
+          enum: ['Admin', 'Manager', 'Member'],
+          default: 'Member',
+        },
+        status: {
+          type: String,
+          enum: ['Pending', 'Accepted', 'Declined'],
+          default: 'Pending',
+        },
+        invitedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   {
     timestamps: true,

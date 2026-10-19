@@ -104,6 +104,26 @@ const meetingSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    passcode: {
+      type: String,
+      default: '',
+    },
+    settings: {
+      muteOnEntry: { type: Boolean, default: false },
+      allowScreenShare: { type: Boolean, default: true },
+      aiAutoTranscribe: { type: Boolean, default: true },
+      recordingEnabled: { type: Boolean, default: false },
+    },
+    category: {
+      type: String,
+      default: 'General',
+    },
+    tags: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     hasSummary: {
       type: Boolean,
       default: false,
