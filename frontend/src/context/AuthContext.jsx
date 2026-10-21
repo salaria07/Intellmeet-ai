@@ -44,6 +44,9 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
     if (res.data?.success && res.data?.user) {
+      if (res.data?.token) {
+        localStorage.setItem('intellmeet_token', res.data.token);
+      }
       setUser(res.data.user);
       if (res.data.user.settings?.theme) {
         setTheme(res.data.user.settings.theme);
@@ -56,6 +59,9 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     const res = await api.post('/auth/register', userData);
     if (res.data?.success && res.data?.user) {
+      if (res.data?.token) {
+        localStorage.setItem('intellmeet_token', res.data.token);
+      }
       setUser(res.data.user);
       return res.data.user;
     }
@@ -68,6 +74,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.warn('Logout error:', err.message);
     } finally {
+      localStorage.removeItem('intellmeet_token');
       setUser(null);
     }
   };

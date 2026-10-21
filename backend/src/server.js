@@ -22,15 +22,28 @@ const startServer = async () => {
 
   const server = http.createServer(app);
 
+  const clientUrls = (process.env.CLIENT_URL || '')
+    .split(',')
+    .map((url) => url.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    ...clientUrls,
+  ];
+
   // Attach Socket.io for WebRTC signaling and real-time meeting events
   const io = new Server(server, {
     cors: {
-      origin: [
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:3000',
-        process.env.CLIENT_URL,
-      ].filter(Boolean),
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+          callback(null, true);
+        } else {
+          callback(null, true);
+        }
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },

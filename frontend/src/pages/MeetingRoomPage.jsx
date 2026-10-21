@@ -97,7 +97,8 @@ const MeetingRoomPage = () => {
         }
 
         // 3. Connect Socket.io
-        const socket = io('/', {
+        const socketServerUrl = import.meta.env.VITE_SOCKET_URL || (import.meta.env.PROD ? window.location.origin : 'http://localhost:5000');
+        const socket = io(socketServerUrl, {
           transports: ['websocket', 'polling'],
           withCredentials: true,
         });
