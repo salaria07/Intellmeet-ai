@@ -50,6 +50,8 @@ const startServer = async () => {
     transports: ['websocket', 'polling'],
   });
 
+  app.set('io', io);
+
   configureMeetingSockets(io);
 
   server.listen(PORT, () => {

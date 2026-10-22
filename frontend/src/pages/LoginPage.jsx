@@ -29,7 +29,11 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from
+    ? (typeof location.state.from === 'string'
+        ? location.state.from
+        : `${location.state.from.pathname || '/dashboard'}${location.state.from.search || ''}`)
+    : '/dashboard';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -361,6 +365,7 @@ const LoginPage = () => {
                 New to IntellMeet AI?{' '}
                 <Link
                   to="/register"
+                  state={location.state}
                   className="font-semibold text-brand-electric hover:text-white transition-colors ml-1"
                 >
                   Create an account

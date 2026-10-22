@@ -262,9 +262,18 @@ export const joinMeeting = async (req, res, next) => {
     if (mongoose.connection.readyState === 1) {
       meeting = await Meeting.findOne({
         $or: [{ meetingCode: code }, { _id: mongoose.isValidObjectId(code) ? code : null }],
-      });
+      }).populate('host', 'name email avatar role');
 
       if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found.' });
+
+      // Reject joins if meeting has ended or was cancelled
+      if (meeting.status === 'ended' || meeting.status === 'cancelled') {
+        return res.status(400).json({
+          success: false,
+          message: 'This meeting has ended or is no longer accessible.',
+          status: meeting.status,
+        });
+      }
 
       // Check if user already in participants
       const existing = meeting.participants.find(
@@ -277,9 +286,14 @@ export const joinMeeting = async (req, res, next) => {
           name: user.name,
           email: user.email,
           avatar: user.avatar,
-          role: meeting.host.toString() === user._id.toString() ? 'host' : 'participant',
+          role: meeting.host._id.toString() === user._id.toString() ? 'host' : 'participant',
           joinedAt: new Date(),
+          leftAt: null,
         });
+      } else {
+        existing.leftAt = null; // Re-joining
+        existing.name = user.name;
+        existing.avatar = user.avatar;
       }
 
       if (meeting.status === 'scheduled') {
@@ -295,6 +309,15 @@ export const joinMeeting = async (req, res, next) => {
 
       if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found.' });
 
+      // Reject joins if meeting has ended or was cancelled
+      if (meeting.status === 'ended' || meeting.status === 'cancelled') {
+        return res.status(400).json({
+          success: false,
+          message: 'This meeting has ended or is no longer accessible.',
+          status: meeting.status,
+        });
+      }
+
       const existing = (meeting.participants || []).find(
         (p) => p.user && p.user.toString() === user._id.toString()
       );
@@ -309,7 +332,12 @@ export const joinMeeting = async (req, res, next) => {
           avatar: user.avatar,
           role: meeting.host.toString() === user._id.toString() ? 'host' : 'participant',
           joinedAt: new Date(),
+          leftAt: null,
         });
+      } else {
+        existing.leftAt = null;
+        existing.name = user.name;
+        existing.avatar = user.avatar;
       }
 
       if (meeting.status === 'scheduled') {
@@ -329,8 +357,57 @@ export const joinMeeting = async (req, res, next) => {
 };
 
 /**
+ * @route   POST /api/meetings/:code/leave
+ * @desc    Leave a meeting room without ending it for others
+ * @access  Private
+ */
+export const leaveMeeting = async (req, res, next) => {
+  try {
+    const { code } = req.params;
+    const user = req.user;
+
+    let meeting;
+    if (mongoose.connection.readyState === 1) {
+      meeting = await Meeting.findOne({
+        $or: [{ meetingCode: code }, { _id: mongoose.isValidObjectId(code) ? code : null }],
+      });
+
+      if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found' });
+
+      const participant = meeting.participants.find(
+        (p) => p.user && p.user.toString() === user._id.toString()
+      );
+      if (participant) {
+        participant.leftAt = new Date();
+      }
+      await meeting.save();
+    } else {
+      meeting = memoryStore.meetings.find(
+        (m) => m.meetingCode === code || m._id.toString() === code
+      );
+
+      if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found' });
+
+      const participant = (meeting.participants || []).find(
+        (p) => p.user && p.user.toString() === user._id.toString()
+      );
+      if (participant) {
+        participant.leftAt = new Date();
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Left meeting successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @route   PUT /api/meetings/:code/end
- * @desc    End a live meeting
+ * @desc    End a live meeting (Authorized host or Admin only)
  * @access  Private
  */
 export const endMeeting = async (req, res, next) => {
@@ -344,6 +421,15 @@ export const endMeeting = async (req, res, next) => {
       });
 
       if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found' });
+
+      const isHost = meeting.host.toString() === req.user._id.toString();
+      const isAdmin = req.user.role === 'Admin';
+      if (!isHost && !isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only the meeting host or an administrator can end the meeting for everyone.',
+        });
+      }
 
       meeting.status = 'ended';
       meeting.actualEndTime = new Date();
@@ -361,6 +447,15 @@ export const endMeeting = async (req, res, next) => {
 
       if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found' });
 
+      const isHost = meeting.host.toString() === req.user._id.toString();
+      const isAdmin = req.user.role === 'Admin';
+      if (!isHost && !isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only the meeting host or an administrator can end the meeting for everyone.',
+        });
+      }
+
       meeting.status = 'ended';
       meeting.actualEndTime = new Date();
       if (meeting.actualStartTime) {
@@ -369,6 +464,15 @@ export const endMeeting = async (req, res, next) => {
           Math.round((new Date(meeting.actualEndTime) - new Date(meeting.actualStartTime)) / 60000)
         );
       }
+    }
+
+    // Broadcast meeting-ended event to all connected sockets in this room
+    const io = req.app?.get('io');
+    if (io) {
+      io.to(`meeting:${meeting.meetingCode}`).emit('meeting-ended', {
+        meetingCode: meeting.meetingCode,
+        message: 'The host has ended this meeting.',
+      });
     }
 
     res.status(200).json({

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Sparkles,
   Shield,
@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 const RegisterPage = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -27,6 +28,12 @@ const RegisterPage = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const from = location.state?.from
+    ? (typeof location.state.from === 'string'
+        ? location.state.from
+        : `${location.state.from.pathname || '/dashboard'}${location.state.from.search || ''}`)
+    : '/dashboard';
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -44,7 +51,7 @@ const RegisterPage = () => {
     setLoading(true);
     try {
       await register(formData);
-      navigate('/dashboard', { replace: true });
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -194,7 +201,11 @@ const RegisterPage = () => {
 
           <div className="mt-6 text-center text-xs text-slate-400">
             Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-brand-electric hover:text-white transition-colors">
+            <Link
+              to="/login"
+              state={location.state}
+              className="font-semibold text-brand-electric hover:text-white transition-colors"
+            >
               Sign in
             </Link>
           </div>

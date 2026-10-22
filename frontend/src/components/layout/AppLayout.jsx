@@ -16,6 +16,8 @@ import {
   Search,
   Sparkles,
   ChevronRight,
+  ChevronDown,
+  Calendar,
   Menu,
   X,
   ExternalLink,
@@ -45,6 +47,7 @@ const AppLayout = () => {
   const [quickJoinCode, setQuickJoinCode] = useState('');
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isInstantLoading, setIsInstantLoading] = useState(false);
+  const [isNewMeetingMenuOpen, setIsNewMeetingMenuOpen] = useState(false);
 
   // Fetch notifications
   useEffect(() => {
@@ -272,14 +275,73 @@ const AppLayout = () => {
               <span>Join with Code</span>
             </button>
 
-            <button
-              onClick={handleInstantMeeting}
-              disabled={isInstantLoading}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-brand-blue to-brand-indigo hover:from-blue-600 hover:to-indigo-600 shadow-glow-blue/50 transition-all flex items-center gap-1.5"
-            >
-              <Video className="w-3.5 h-3.5" />
-              <span>New Meeting</span>
-            </button>
+            {/* New Meeting Dropdown (Instant vs Schedule) */}
+            <div className="relative">
+              <button
+                onClick={() => setIsNewMeetingMenuOpen(!isNewMeetingMenuOpen)}
+                disabled={isInstantLoading}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-brand-blue to-brand-indigo hover:from-blue-600 hover:to-indigo-600 shadow-glow-blue/50 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                <Video className="w-3.5 h-3.5" />
+                <span>New Meeting</span>
+                <ChevronDown
+                  className={`w-3 h-3 text-slate-200 transition-transform ${
+                    isNewMeetingMenuOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {isNewMeetingMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setIsNewMeetingMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-navy-900 border border-slate-700 shadow-2xl p-2 z-40 animate-fadeIn">
+                    <button
+                      onClick={() => {
+                        setIsNewMeetingMenuOpen(false);
+                        handleInstantMeeting();
+                      }}
+                      disabled={isInstantLoading}
+                      className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 transition-colors flex items-start gap-3 cursor-pointer group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-brand-blue/20 border border-brand-blue/40 flex items-center justify-center text-brand-electric group-hover:scale-105 transition-transform flex-shrink-0">
+                        <Video className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white group-hover:text-brand-electric transition-colors">
+                          {isInstantLoading ? 'Starting Room...' : 'Start Instant Meeting'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
+                          Create ad-hoc room and enter immediately
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsNewMeetingMenuOpen(false);
+                        navigate('/meetings?action=schedule');
+                      }}
+                      className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 transition-colors flex items-start gap-3 cursor-pointer group mt-1"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-brand-gold group-hover:scale-105 transition-transform flex-shrink-0">
+                        <Calendar className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white group-hover:text-brand-gold transition-colors">
+                          Schedule Meeting
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
+                          Select title, date, time & invite team
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             <div className="h-5 w-[1px] bg-slate-800 mx-1" />
 

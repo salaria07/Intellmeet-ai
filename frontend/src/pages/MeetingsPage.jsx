@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { getMeetingInviteUrl } from '../utils/meetingUtils';
 
 const MeetingsPage = () => {
   const { user } = useAuth();
@@ -41,6 +42,7 @@ const MeetingsPage = () => {
     searchParams.get('action') === 'schedule'
   );
   const [isSummaryGenerating, setIsSummaryGenerating] = useState(false);
+  const [isInstantLoading, setIsInstantLoading] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -81,6 +83,12 @@ const MeetingsPage = () => {
   useEffect(() => {
     fetchMeetings();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'schedule') {
+      setIsScheduleModalOpen(true);
+    }
+  }, [searchParams]);
 
   const handleOpenDetails = async (meeting) => {
     setSelectedMeeting(meeting);
@@ -131,6 +139,8 @@ const MeetingsPage = () => {
   };
 
   const handleInstantMeeting = async () => {
+    if (isInstantLoading) return;
+    setIsInstantLoading(true);
     try {
       const res = await api.post('/meetings/instant', {
         title: `${user?.name || 'Quick'}'s Instant Meeting`,
@@ -140,6 +150,8 @@ const MeetingsPage = () => {
       }
     } catch (err) {
       alert('Could not create instant meeting: ' + err.message);
+    } finally {
+      setIsInstantLoading(false);
     }
   };
 
@@ -197,7 +209,7 @@ const MeetingsPage = () => {
   };
 
   const copyInviteLink = (code) => {
-    const link = `${window.location.origin}/meeting/${code}`;
+    const link = getMeetingInviteUrl(code);
     navigator.clipboard.writeText(link);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
@@ -243,10 +255,11 @@ const MeetingsPage = () => {
 
           <button
             onClick={handleInstantMeeting}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-brand-blue via-brand-indigo to-blue-600 hover:from-blue-600 hover:to-indigo-600 shadow-glow-blue transition-all flex items-center gap-2 cursor-pointer"
+            disabled={isInstantLoading}
+            className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-brand-blue via-brand-indigo to-blue-600 hover:from-blue-600 hover:to-indigo-600 shadow-glow-blue transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
           >
             <Plus className="w-4 h-4" />
-            <span>New Instant Meeting</span>
+            <span>{isInstantLoading ? 'Launching Room...' : 'New Instant Meeting'}</span>
           </button>
         </div>
       </div>
@@ -544,7 +557,7 @@ const MeetingsPage = () => {
                     Meeting URL
                   </p>
                   <p className="text-xs font-mono text-brand-electric truncate mt-0.5">
-                    {window.location.origin}/meeting/{selectedMeeting.meetingCode}
+                    {getMeetingInviteUrl(selectedMeeting.meetingCode)}
                   </p>
                 </div>
 

@@ -40,6 +40,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/meetings/join/:code"
+            element={
+              <ProtectedRoute>
+                <MeetingRoomPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Authenticated Application with Persistent Six-Tab Layout */}
           <Route
