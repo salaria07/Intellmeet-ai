@@ -8,6 +8,8 @@ import { memoryStore } from '../utils/memoryStore.js';
 export const configureMeetingSockets = (io) => {
   // Map of canonicalMeetingCode -> Map of socketId -> participant info
   const roomParticipants = new Map();
+  // Map of canonicalMeetingCode -> { socketId, user }
+  const roomScreenSharers = new Map();
 
   io.on('connection', (socket) => {
     let currentMeetingCode = null;
@@ -79,7 +81,13 @@ export const configureMeetingSockets = (io) => {
             mediaStatus: p.mediaStatus || { audio: true, video: true, screen: false },
           }));
 
-        socket.emit('existing-participants', existingPeers);
+        const activeSharer = roomScreenSharers.get(canonicalCode) || null;
+
+        // Send existing participants along with active screen sharer info
+        socket.emit('existing-participants', {
+          peers: existingPeers,
+          activeScreenSharer: activeSharer,
+        });
 
         // Register current socket participant in the room
         participantsInRoom.set(socket.id, {
@@ -151,7 +159,49 @@ export const configureMeetingSockets = (io) => {
       });
     });
 
-    // 5. In-Meeting Real-time Chat
+    // 5. Screen Sharing Coordination
+    socket.on('start-screen-share', ({ meetingCode }) => {
+      const code = meetingCode || currentMeetingCode;
+      if (!code) return;
+
+      const currentSharer = roomScreenSharers.get(code);
+      if (currentSharer && currentSharer.socketId !== socket.id) {
+        socket.emit('screen-share-rejected', {
+          message: `${currentSharer.user?.name || 'Another participant'} is currently sharing their screen.`,
+          currentSharer: currentSharer.user,
+        });
+        return;
+      }
+
+      roomScreenSharers.set(code, {
+        socketId: socket.id,
+        user: currentUser,
+      });
+
+      io.to(`meeting:${code}`).emit('screen-share-started', {
+        socketId: socket.id,
+        user: currentUser,
+      });
+
+      console.log(`[Socket] ${currentUser?.name || socket.id} started screen sharing in "${code}".`);
+    });
+
+    socket.on('stop-screen-share', ({ meetingCode }) => {
+      const code = meetingCode || currentMeetingCode;
+      if (!code) return;
+
+      const currentSharer = roomScreenSharers.get(code);
+      if (currentSharer && currentSharer.socketId === socket.id) {
+        roomScreenSharers.delete(code);
+        io.to(`meeting:${code}`).emit('screen-share-stopped', {
+          socketId: socket.id,
+          user: currentUser,
+        });
+        console.log(`[Socket] ${currentUser?.name || socket.id} stopped screen sharing in "${code}".`);
+      }
+    });
+
+    // 6. In-Meeting Real-time Chat
     socket.on('send-chat', ({ meetingCode, message }) => {
       const code = meetingCode || currentMeetingCode;
       if (!code) return;
@@ -166,7 +216,7 @@ export const configureMeetingSockets = (io) => {
       io.to(`meeting:${code}`).emit('new-chat', chatItem);
     });
 
-    // 6. Media status toggle (Mute, Camera, Screen Share)
+    // 7. Media status toggle (Mute, Camera, Screen Share)
     socket.on('toggle-media', ({ meetingCode, mediaType, enabled }) => {
       const code = meetingCode || currentMeetingCode;
       if (code && roomParticipants.has(code)) {
@@ -185,7 +235,7 @@ export const configureMeetingSockets = (io) => {
       }
     });
 
-    // 7. Live speech transcription caption broadcast
+    // 8. Live speech transcription caption broadcast
     socket.on('live-transcript-chunk', ({ meetingCode, segment }) => {
       const code = meetingCode || currentMeetingCode;
       if (code) {
@@ -193,12 +243,22 @@ export const configureMeetingSockets = (io) => {
       }
     });
 
-    // 8. Explicit Leave Room
+    // 9. Explicit Leave Room
     socket.on('leave-room', ({ meetingCode }) => {
       const code = meetingCode || currentMeetingCode;
       if (code && roomParticipants.has(code)) {
         const room = roomParticipants.get(code);
         room.delete(socket.id);
+
+        // Check if this socket was sharing screen
+        const currentSharer = roomScreenSharers.get(code);
+        if (currentSharer && currentSharer.socketId === socket.id) {
+          roomScreenSharers.delete(code);
+          socket.to(`meeting:${code}`).emit('screen-share-stopped', {
+            socketId: socket.id,
+            user: currentUser,
+          });
+        }
 
         socket.to(`meeting:${code}`).emit('user-left', {
           socketId: socket.id,
@@ -209,6 +269,7 @@ export const configureMeetingSockets = (io) => {
 
         if (room.size === 0) {
           roomParticipants.delete(code);
+          roomScreenSharers.delete(code);
         }
 
         console.log(`[Socket] ${currentUser?.name || socket.id} explicitly left meeting "${code}".`);
@@ -216,14 +277,25 @@ export const configureMeetingSockets = (io) => {
       currentMeetingCode = null;
     });
 
-    // 9. User Disconnect
+    // 10. User Disconnect
     socket.on('disconnect', () => {
       if (currentMeetingCode && roomParticipants.has(currentMeetingCode)) {
         const room = roomParticipants.get(currentMeetingCode);
         room.delete(socket.id);
 
+        // Check if this socket was sharing screen
+        const currentSharer = roomScreenSharers.get(currentMeetingCode);
+        if (currentSharer && currentSharer.socketId === socket.id) {
+          roomScreenSharers.delete(currentMeetingCode);
+          socket.to(`meeting:${currentMeetingCode}`).emit('screen-share-stopped', {
+            socketId: socket.id,
+            user: currentUser,
+          });
+        }
+
         if (room.size === 0) {
           roomParticipants.delete(currentMeetingCode);
+          roomScreenSharers.delete(currentMeetingCode);
         } else {
           socket.to(`meeting:${currentMeetingCode}`).emit('user-left', {
             socketId: socket.id,
